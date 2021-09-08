@@ -2,14 +2,12 @@
 #
 # fetcher = BitstampFetcher()
 # scraper = Scraper(fetcher, "btcusd", "1m")
-# while scraper.scrape_backward():
-#     pass
-# while scraper.scrape_forward():
-#     pass
+# scraper.scrape_all()
 
 import sqlite3
 import requests
 import datetime
+import pandas as pd
 from datetime import timezone
 from dateutil import parser
 
@@ -22,6 +20,7 @@ class BitstampFetcher:
     BASE_URI = "https://www.bitstamp.net/api/v2/ohlc/"
 
     def fetch_candles(self, symbol, timeframe, datetime_start, datetime_end):
+        print("fetching from " + str(datetime_start) + " to " + str(datetime_end))
         start_unix = int(datetime_start.timestamp())
         end_unix = int(datetime_end.timestamp())
         url = self.BASE_URI + symbol
@@ -33,7 +32,8 @@ class BitstampFetcher:
 
         candles = []
         for item in response.json()["data"]["ohlc"]:
-            if int(item["timestamp"]) >= start_unix:
+            ts = int(item["timestamp"])
+            if ts > start_unix and ts < end_unix:
                 candle = {
                     "High": item["high"],
                     "Datetime": datetime.datetime.fromtimestamp(
@@ -48,7 +48,7 @@ class BitstampFetcher:
         return candles
 
     def num_candles(self):
-        return 2
+        return 1000
 
     def name(self):
         return "Bitstamp"
@@ -111,6 +111,12 @@ class Scraper:
         self.insert_candles(candles)
         return bool(candles)
 
+    def scrape_all(self):
+        while self.scrape_backward():
+            pass
+        while self.scrape_forward():
+            pass
+
     def insert_candles(self, candles):
         cmd = "INSERT OR IGNORE INTO " + self.db_table
         cmd += " (Datetime, Open, High, Low, Close, Volume)"
@@ -126,3 +132,8 @@ class Scraper:
             )
             self.cur.execute(cmd, entry)
         self.con.commit()
+    
+    def get_candles_df(self):
+        df = pd.read_sql_query("SELECT * from " + self.db_table + " ORDER BY Datetime", self.con, index_col="Datetime", parse_dates=["Datetime"])
+        print(df.head())
+        return df

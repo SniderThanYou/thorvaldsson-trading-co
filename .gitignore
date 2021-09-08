@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# sqlite3 db files
+*.db
+
+# backtesting html results
+*.html
