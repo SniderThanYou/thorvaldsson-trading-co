@@ -5,56 +5,17 @@
 # scraper.scrape_all()
 
 import sqlite3
-import requests
 import datetime
 import pandas as pd
 from datetime import timezone
 from dateutil import parser
 
+from candle_fetcher import BitstampFetcher
 
 TIMEFRAME_TO_DELTA = {"1m": datetime.timedelta(0, 60)}
-TIMEFRAME_TO_SECONDS = {"1m": 60}
-
-
-class BitstampFetcher:
-    BASE_URI = "https://www.bitstamp.net/api/v2/ohlc/"
-
-    def fetch_candles(self, symbol, timeframe, datetime_start, datetime_end):
-        print("fetching from " + str(datetime_start) + " to " + str(datetime_end))
-        start_unix = int(datetime_start.timestamp())
-        end_unix = int(datetime_end.timestamp())
-        url = self.BASE_URI + symbol
-        url += "/?step=" + str(TIMEFRAME_TO_SECONDS[timeframe])
-        url += "&start=" + str(start_unix)
-        url += "&end=" + str(end_unix)
-        url += "&limit=" + str(self.num_candles())
-        response = requests.get(url)
-
-        candles = []
-        for item in response.json()["data"]["ohlc"]:
-            ts = int(item["timestamp"])
-            if ts > start_unix and ts < end_unix:
-                candle = {
-                    "High": item["high"],
-                    "Datetime": datetime.datetime.fromtimestamp(
-                        int(item["timestamp"]), tz=timezone.utc
-                    ),
-                    "Volume": item["volume"],  # the volume of BTC in the BTC/USD Pair
-                    "Low": item["low"],
-                    "Close": item["close"],
-                    "Open": item["open"],
-                }
-                candles.append(candle)
-        return candles
-
-    def num_candles(self):
-        return 1000
-
-    def name(self):
-        return "Bitstamp"
-
 
 class Scraper:
+
     def __init__(self, fetcher, symbol, timeframe):
         self.fetcher = fetcher
         self.symbol = symbol
@@ -93,7 +54,7 @@ class Scraper:
 
     def scrape_backward(self):
         ts = self.oldest_datetime()
-        n = self.fetcher.num_candles()
+        n = self.fetcher.max_num_candles()
         time_diff = n * TIMEFRAME_TO_DELTA[self.timeframe]
         candles = self.fetcher.fetch_candles(
             self.symbol, self.timeframe, ts - time_diff, ts
@@ -103,7 +64,7 @@ class Scraper:
 
     def scrape_forward(self):
         ts = self.newest_datetime()
-        n = self.fetcher.num_candles()
+        n = self.fetcher.max_num_candles()
         time_diff = n * TIMEFRAME_TO_DELTA[self.timeframe]
         candles = self.fetcher.fetch_candles(
             self.symbol, self.timeframe, ts, ts + time_diff
